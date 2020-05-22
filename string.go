@@ -85,12 +85,17 @@ func (s *String) Slice(i, j int) []byte {
 	return s.buffer[istart:s.offsets[j]]
 }
 
-// Trunc truncates the String to max of i characters. No operation is performed
-// when i is greater than the number of characters in the String.
+// Trunc truncates the String to max of i characters. As a special case the
+// String is truncated to the empty string when i is less than 0. No operation
+// is performed when i is greater than the number of characters in the String.
 func (s *String) Trunc(i int) {
-	if i >= len(s.offsets) {
-		return
+	if i > 0 {
+		if i < len(s.offsets) {
+			s.buffer = s.buffer[:s.offsets[i]]
+			s.offsets = s.offsets[:i]
+		}
+	} else {
+		s.buffer = nil
+		s.offsets = nil
 	}
-	s.buffer = s.buffer[:s.offsets[i]]
-	s.offsets = s.offsets[:i]
 }

@@ -204,6 +204,17 @@ func TestString(t *testing.T) {
 	})
 
 	t.Run("trunc", func(t *testing.T) {
+		t.Run("index -1", func(t *testing.T) {
+			s := NewString("cafés")
+			s.Trunc(-1)
+			if got, want := s.Len(), 0; got != want {
+				t.Fatalf("GOT: %v; WANT: %v", got, want)
+			}
+			if got, want := s.Bytes(), []byte(nil); !bytes.Equal(got, want) {
+				t.Errorf("GOT: %v; WANT: %v", got, want)
+			}
+		})
+
 		t.Run("index zero", func(t *testing.T) {
 			s := NewString("cafés")
 			s.Trunc(0)
