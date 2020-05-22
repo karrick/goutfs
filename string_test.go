@@ -101,6 +101,18 @@ func TestString(t *testing.T) {
 			want := [][]byte{[]byte{'c'}, []byte{'a'}, []byte{'f'}, []byte{101, 204, 129}, []byte{'s'}}
 			ensureSlicesOfByteSlicesMatch(t, got, want)
 		})
+
+		t.Run("﷽", func(t *testing.T) {
+			got := NewString("﷽").characters()
+			want := [][]byte{[]byte{239, 183, 189}}
+			ensureSlicesOfByteSlicesMatch(t, got, want)
+		})
+
+		t.Run("ﷹ", func(t *testing.T) {
+			got := NewString("ﷹ").characters()
+			want := [][]byte{[]byte{216, 181}, []byte{217, 132}, []byte{217, 137}}
+			ensureSlicesOfByteSlicesMatch(t, got, want)
+		})
 	})
 
 	t.Run("len", func(t *testing.T) {
