@@ -82,7 +82,7 @@ literals, which may or may not represent valid UTF-8 encoded data.
 Iterating over a UTF-8 string will result in some runes that require
 multiple bytes, and other runes that require a single byte.
 
-### Starting vs Non-Staring (Combining) Rune
+### Starting vs Non-Starting (Combining) Rune
 
 Unicode defines many code points that are called starting code
 points. They may be displayed independently of any other code point,
