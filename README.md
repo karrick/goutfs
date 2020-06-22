@@ -8,6 +8,11 @@ multiple code points are not split mid character.
 
 ## Example Use
 
+Documentation is available via
+[![GoDoc](https://godoc.org/github.com/karrick/goutfs?status.svg)](https://godoc.org/github.com/karrick/goutfs)
+and
+[https://pkg.go.dev/github.com/karrick/goutfs?tab=doc](https://pkg.go.dev/github.com/karrick/goutfs?tab=doc).
+
 ```Go
 func ExampleString() {
     s := goutfs.NewString("cafés")
