@@ -86,8 +86,9 @@ func (s *String) Slice(i, j int) []byte {
 }
 
 // Trunc truncates the String to max of i characters. As a special case the
-// String is truncated to the empty string when i is less than 0. No operation
-// is performed when i is greater than the number of characters in the String.
+// String is truncated to the empty string when i is less than or equal to 0. No
+// operation is performed when i is greater than or equal to the number of
+// characters in the String.
 func (s *String) Trunc(i int) {
 	if i > 0 {
 		if i < len(s.offsets) {
