@@ -41,23 +41,24 @@ human might see the latin letter e with an accent grave over it, for
 example.
 
 Characters are stored and transmitted using some encoding. In unicode
-those encodings are called code points. Because of how combining
-characters work in unicode, some characters could have multiple code
-point representations. For instance, the lower case letter e with an
-accent grave could be encoded as a single unicode code point, or
-alternatively encoded by two code points: the first one being the
-lower case latin letter e, the second as what is known as a combining
-code point, in this case the combining code point for accent
-grave. Both of these representations result in the same character
-being displayed, but have two byte encodings. There are libraries to
-normalize these encodings to one of various canonical
-standards. However, I am not certain character normalization needs to
-be addressed in this library.
+parlance those encodings are called code points. Because of how
+combining characters work in unicode, some characters could have
+multiple code point representations. For instance, the lower case
+letter e with an accent grave could be encoded as a single unicode
+code point, or alternatively, encoded by two code points. Namely, the
+first codepoint would be the lower case latin letter e, the second as
+what is known as a combining code point. In this case the combining
+code point would be the accent grave combining code point. Both of
+these representations result in the same character being displayed,
+but each would have a different sequence of bytes to encode the
+character. There are libraries to normalize these encodings to one of
+various canonical standards. However, I am not certain character
+normalization needs to be addressed in this library.
 
 ### Code Point, a.k.a. Go rune
 
 A code point is called a rune in Go parlance. A Go rune is stored as
-an int32 value. Remember a rune is not necessarily a single
+an `int32` value. Remember a rune is not necessarily a single
 character. Some characters have multiple unicode encodings, each of
 which could be single or multiple code points.
 
@@ -86,9 +87,11 @@ multiple bytes, and other runes that require a single byte.
 
 Unicode defines many code points that are called starting code
 points. They may be displayed independently of any other code point,
-and the may be modified indefinitely by appending non-starting code
-points. These non-starting code points are more frequently called
-combining code points in literature.
+and the may be modified indefinitely by appending what are called
+non-starting code points. Non-starting code points are more frequently
+called combining code points in literature. Each valid unicode
+character sequence starts with a starting code point, and be followed
+by zero or more non-starting code points.
 
 ## References
 
