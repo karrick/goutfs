@@ -15,7 +15,7 @@ func ensureByteSlicesMatch(tb testing.TB, got, want []byte) {
 	for i := 0; i < max; i++ {
 		if i < la && i < lb {
 			if g, w := got[i], want[i]; g != w {
-				tb.Errorf("%d: GOT: %q; WANT: %q", i, got, want)
+				tb.Errorf("%d: GOT: %v; WANT: %v", i, got, want)
 			}
 		} else if i < la {
 			tb.Errorf("%d: GOT: extra byte: %q", i, got[i])

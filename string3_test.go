@@ -2,49 +2,113 @@ package goutfs
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
+	"unicode/utf8"
 )
 
-func ExampleString() {
-	s := NewString("cafés")
-	fmt.Println(s.Len())
-	fmt.Println(string(s.Char(3)))
-	fmt.Println(string(s.Slice(0, 4)))
-	fmt.Println(string(s.Slice(4, -1)))
-	s.Trunc(3)
-	fmt.Println(string(s.Bytes()))
-	// Output:
-	// 5
-	// é
-	// café
-	// s
-	// caf
+type String3 struct {
+	offsets []int
+	buffer  []byte
 }
 
-// Characters returns a slice of characters, each character being a slice of
-// bytes of the respective encoded character.
-func (s *String) characters() [][]byte {
-	l := len(s.offsets)
-	characters := make([][]byte, l)
-	for i := 0; i < l; i++ {
-		characters[i] = s.Char(i)
+func NewString3(s string) *String3 {
+	if len(s) == 0 {
+		return new(String3)
 	}
-	return characters
+
+	buffer := []byte(s)
+	var offsets []int
+	var offset, sz int
+	var r rune
+
+	for {
+		offsets = append(offsets, offset)
+
+		// ??? ensure rune does not try to slurp in more bytes than have...
+		r = rune(buffer[offset])
+
+		// Elide making a function call when possible.
+		if r < utf8.RuneSelf {
+			if offset++; offset < len(s) {
+				continue
+			}
+			return &String3{buffer: buffer, offsets: offsets}
+		} else {
+			_, sz = utf8.DecodeRune(buffer[offset:])
+			if offset += sz; offset < len(s) {
+				continue
+			}
+			return &String3{buffer: buffer, offsets: offsets}
+		}
+	}
 }
 
-func TestString(t *testing.T) {
+// Bytes returns the entire slice of bytes that encode all characters in the
+// String.
+func (s *String3) Bytes() []byte {
+	return s.buffer
+}
+
+// Char returns the slice of bytes that encode the Ith character.
+func (s *String3) Char(i int) []byte {
+	if i < 0 || i >= len(s.offsets) {
+		return nil
+	}
+	if i < len(s.offsets)-1 {
+		return s.buffer[s.offsets[i]:s.offsets[i+1]]
+	}
+	return s.buffer[s.offsets[i]:]
+}
+
+// Len returns the number of characters in the String.
+func (s *String3) Len() int {
+	return len(s.offsets)
+}
+
+// Slice returns the slice of bytes that encode the Ith thru Jth-1 characters of
+// the String. As two special cases, when i is -1, this returns nil; or when j
+// is -1, this returns from the Ith character to the end of the string.
+func (s *String3) Slice(i, j int) []byte {
+	if i < 0 || i >= len(s.offsets) {
+		return nil
+	}
+	istart := s.offsets[i]
+
+	if j == -1 || j >= len(s.offsets) {
+		return s.buffer[istart:]
+	}
+
+	return s.buffer[istart:s.offsets[j]]
+}
+
+// Trunc truncates the String to max of i characters. As a special case the
+// String is truncated to the empty string when i is less than or equal to 0. No
+// operation is performed when i is greater than or equal to the number of
+// characters in the String.
+func (s *String3) Trunc(i int) {
+	if i > 0 {
+		if i < len(s.offsets) {
+			s.buffer = s.buffer[:s.offsets[i]]
+			s.offsets = s.offsets[:i]
+		}
+	} else {
+		s.buffer = nil
+		s.offsets = nil
+	}
+}
+
+func TestString3(t *testing.T) {
 	t.Run("bytes", func(t *testing.T) {
 		t.Run("empty", func(t *testing.T) {
-			s := NewString("")
+			s := NewString3("")
 			if got, want := s.Bytes(), []byte(nil); !bytes.Equal(got, want) {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 
 		t.Run("non-empty", func(t *testing.T) {
-			s := NewString("cafés")
-			if got, want := s.Bytes(), []byte("cafés"); !bytes.Equal(got, want) {
+			s := NewString3("cafés")
+			if got, want := s.Bytes(), []byte("cafés"); !bytes.Equal(got, want) {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		})
@@ -52,14 +116,14 @@ func TestString(t *testing.T) {
 
 	t.Run("char", func(t *testing.T) {
 		t.Run("i less than 0", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 			if got, want := s.Char(-1), []byte(nil); !bytes.Equal(got, want) {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 
 		t.Run("i within range", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 			if got, want := s.Char(0), []byte{'c'}; !bytes.Equal(got, want) {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -69,7 +133,7 @@ func TestString(t *testing.T) {
 			if got, want := s.Char(2), []byte{'f'}; !bytes.Equal(got, want) {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			if got, want := s.Char(3), []byte("é"); !bytes.Equal(got, want) {
+			if got, want := s.Char(3), []byte("é"); !bytes.Equal(got, want) {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 			if got, want := s.Char(4), []byte{'s'}; !bytes.Equal(got, want) {
@@ -78,7 +142,7 @@ func TestString(t *testing.T) {
 		})
 
 		t.Run("i above range", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 			if got, want := s.Char(5), []byte(nil); !bytes.Equal(got, want) {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -87,44 +151,44 @@ func TestString(t *testing.T) {
 
 	t.Run("characters", func(t *testing.T) {
 		t.Run("empty string", func(t *testing.T) {
-			got, want := NewString("").characters(), [][]byte(nil)
+			got, want := NewString3("").characters(), [][]byte(nil)
 			ensureSlicesOfByteSlicesMatch(t, got, want)
 		})
 
 		t.Run("a", func(t *testing.T) {
-			got, want := NewString("a").characters(), [][]byte{[]byte{'a'}}
+			got, want := NewString3("a").characters(), [][]byte{[]byte{'a'}}
 			ensureSlicesOfByteSlicesMatch(t, got, want)
 		})
 
 		t.Run("cafés", func(t *testing.T) {
-			got := NewString("cafés").characters()
-			want := [][]byte{[]byte{'c'}, []byte{'a'}, []byte{'f'}, []byte{101, 204, 129}, []byte{'s'}}
+			got := NewString3("cafés").characters()
+			want := [][]byte{[]byte{'c'}, []byte{'a'}, []byte{'f'}, []byte{195, 169}, []byte{'s'}}
 			ensureSlicesOfByteSlicesMatch(t, got, want)
 		})
 
 		t.Run("﷽", func(t *testing.T) {
-			got := NewString("﷽").characters()
+			got := NewString3("﷽").characters()
 			want := [][]byte{[]byte{239, 183, 189}}
 			ensureSlicesOfByteSlicesMatch(t, got, want)
 		})
 
 		t.Run("ﷹ", func(t *testing.T) {
-			got := NewString("ﷹ").characters()
-			want := [][]byte{[]byte{216, 181}, []byte{217, 132}, []byte{217, 137}}
+			got := NewString3("ﷹ").characters()
+			want := [][]byte{[]byte{239, 183, 185}}
 			ensureSlicesOfByteSlicesMatch(t, got, want)
 		})
 	})
 
 	t.Run("len", func(t *testing.T) {
 		t.Run("empty", func(t *testing.T) {
-			s := NewString("")
+			s := NewString3("")
 			if got, want := s.Len(), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 
 		t.Run("non-empty", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 			if got, want := s.Len(), 5; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -133,14 +197,14 @@ func TestString(t *testing.T) {
 
 	t.Run("slice", func(t *testing.T) {
 		t.Run("i negative", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 			if got, want := s.Slice(-1, -1), []byte(nil); !bytes.Equal(got, want) {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 
 		t.Run("i too large", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 
 			if got, want := s.Slice(6, 13), []byte(nil); !bytes.Equal(got, want) {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
@@ -152,28 +216,28 @@ func TestString(t *testing.T) {
 		})
 
 		t.Run("j too large", func(t *testing.T) {
-			s := NewString("cafés")
-			if got, want := string(s.Slice(0, 13)), "cafés"; got != want {
+			s := NewString3("cafés")
+			if got, want := string(s.Slice(0, 13)), "cafés"; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 
 		t.Run("j is -1", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 
-			if got, want := string(s.Slice(0, -1)), "cafés"; got != want {
+			if got, want := string(s.Slice(0, -1)), "cafés"; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			if got, want := string(s.Slice(1, -1)), "afés"; got != want {
+			if got, want := string(s.Slice(1, -1)), "afés"; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			if got, want := string(s.Slice(2, -1)), "fés"; got != want {
+			if got, want := string(s.Slice(2, -1)), "fés"; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			if got, want := string(s.Slice(3, -1)), "és"; got != want {
+			if got, want := string(s.Slice(3, -1)), "és"; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
@@ -187,13 +251,13 @@ func TestString(t *testing.T) {
 		})
 
 		t.Run("i and j within range", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 
-			if got, want := string(s.Slice(0, 5)), "cafés"; got != want {
+			if got, want := string(s.Slice(0, 5)), "cafés"; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			if got, want := string(s.Slice(0, 4)), "café"; got != want {
+			if got, want := string(s.Slice(0, 4)), "café"; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
@@ -217,7 +281,7 @@ func TestString(t *testing.T) {
 
 	t.Run("trunc", func(t *testing.T) {
 		t.Run("index -1", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 			s.Trunc(-1)
 			if got, want := s.Len(), 0; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
@@ -228,7 +292,7 @@ func TestString(t *testing.T) {
 		})
 
 		t.Run("index zero", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 			s.Trunc(0)
 			if got, want := s.Len(), 0; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
@@ -239,7 +303,7 @@ func TestString(t *testing.T) {
 		})
 
 		t.Run("index one", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 			s.Trunc(1)
 			if got, want := s.Len(), 1; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
@@ -250,7 +314,7 @@ func TestString(t *testing.T) {
 		})
 
 		t.Run("index two", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 			s.Trunc(2)
 			if got, want := s.Len(), 2; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
@@ -261,7 +325,7 @@ func TestString(t *testing.T) {
 		})
 
 		t.Run("index before multi-code-point", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 			s.Trunc(3)
 			if got, want := s.Len(), 3; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
@@ -272,61 +336,53 @@ func TestString(t *testing.T) {
 		})
 
 		t.Run("index after multi-code-point", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 			s.Trunc(4)
 			if got, want := s.Len(), 4; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			if got, want := s.Bytes(), []byte{99, 97, 102, 101, 204, 129}; !bytes.Equal(got, want) {
+			if got, want := s.Bytes(), []byte{99, 97, 102, 195, 169}; !bytes.Equal(got, want) {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 
 		t.Run("index equals length", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 			s.Trunc(5)
 			if got, want := s.Len(), 5; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			if got, want := string(s.Bytes()), "cafés"; got != want {
+			if got, want := string(s.Bytes()), "cafés"; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 
 		t.Run("index greater than length", func(t *testing.T) {
-			s := NewString("cafés")
+			s := NewString3("cafés")
 			s.Trunc(6)
 			if got, want := s.Len(), 5; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			if got, want := string(s.Bytes()), "cafés"; got != want {
+			if got, want := string(s.Bytes()), "cafés"; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 	})
 }
 
-var benchString = `Οὐχὶ ταὐτὰ παρίσταταί μοι γιγνώσκειν, ὦ ἄνδρες ᾿Αθηναῖοι,
-  ὅταν τ᾿ εἰς τὰ πράγματα ἀποβλέψω καὶ ὅταν πρὸς τοὺς
-  λόγους οὓς ἀκούω· τοὺς μὲν γὰρ λόγους περὶ τοῦ
-  τιμωρήσασθαι Φίλιππον ὁρῶ γιγνομένους, τὰ δὲ πράγματ᾿ 
-  εἰς τοῦτο προήκοντα,  ὥσθ᾿ ὅπως μὴ πεισόμεθ᾿ αὐτοὶ
-  πρότερον κακῶς σκέψασθαι δέον. οὐδέν οὖν ἄλλο μοι δοκοῦσιν
-  οἱ τὰ τοιαῦτα λέγοντες ἢ τὴν ὑπόθεσιν, περὶ ἧς βουλεύεσθαι,
-  οὐχὶ τὴν οὖσαν παριστάντες ὑμῖν ἁμαρτάνειν. ἐγὼ δέ, ὅτι μέν
-  ποτ᾿ ἐξῆν τῇ πόλει καὶ τὰ αὑτῆς ἔχειν ἀσφαλῶς καὶ Φίλιππον
-  τιμωρήσασθαι, καὶ μάλ᾿ ἀκριβῶς οἶδα· ἐπ᾿ ἐμοῦ γάρ, οὐ πάλαι
-  γέγονεν ταῦτ᾿ ἀμφότερα· νῦν μέντοι πέπεισμαι τοῦθ᾿ ἱκανὸν
-  προλαβεῖν ἡμῖν εἶναι τὴν πρώτην, ὅπως τοὺς συμμάχους
-  σώσομεν. ἐὰν γὰρ τοῦτο βεβαίως ὑπάρξῃ, τότε καὶ περὶ τοῦ
-  τίνα τιμωρήσεταί τις καὶ ὃν τρόπον ἐξέσται σκοπεῖν· πρὶν δὲ
-  τὴν ἀρχὴν ὀρθῶς ὑποθέσθαι, μάταιον ἡγοῦμαι περὶ τῆς
-  τελευτῆς ὁντινοῦν ποιεῖσθαι λόγον.
-
-  Δημοσθένους, Γ´ ᾿Ολυνθιακὸς`
-
-func BenchmarkNewString(b *testing.B) {
+func BenchmarkNewString3(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = NewString(benchString)
+		_ = NewString3(benchString)
 	}
+}
+
+// Characters returns a slice of characters, each character being a slice of
+// bytes of the respective encoded character.
+func (s *String3) characters() [][]byte {
+	l := len(s.offsets)
+	characters := make([][]byte, l)
+	for i := 0; i < l; i++ {
+		characters[i] = s.Char(i)
+	}
+	return characters
 }
